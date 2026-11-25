@@ -10,6 +10,19 @@
 
 ## 一、如何打开
 
+**方式 0：公网地址（已上线，推荐）**
+
+| 托管 | 地址 | 说明 |
+|---|---|---|
+| Cloudflare Pages | `https://browser-homepage-8c3.pages.dev/` | 全球边缘节点，速度快，作为日常主页用这个 |
+| GitHub Pages | `https://summer123sun.github.io/browser-homepage/` | 仓库即源码，`main` 分支推送后自动重新构建 |
+
+两者内容完全一致。设为浏览器主页时直接填上面的 URL 即可，跨设备也能用。
+源码仓库：`https://github.com/summer123sun/browser-homepage`（公开，只包含静态页面与背景图，无任何凭据）。
+
+> 重新部署：改完文件后 `git push` 即可更新 GitHub Pages；Cloudflare Pages 需再跑一次
+> `wrangler pages deploy <目录> --project-name browser-homepage --branch main`。
+
 **方式 A：直接双击 `index.html`**
 
 ```
