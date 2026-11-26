@@ -1251,6 +1251,52 @@ async function getWsUrl(port, retries = 80) {
       ca['--ink'] >= 4.5 && ca['--ink-2'] >= 4.5,
       '--ink=' + ca['--ink'] + ':1  --ink-2=' + ca['--ink-2'] + ':1  --ink-3(装饰性)=' + ca['--ink-3'] + ':1');
 
+    /* ============ 15.5 旧版 localStorage 升级兼容 ============ */
+    /* 老用户浏览器里存的是旧版 prefs：{bg,bright,blur,cols,density,view,wide,panelOpen,collapsed}
+       新版只认 {bg,bright,blur,cols,density,wide,panelOpen,openCat}，
+       view / collapsed 属已移除概念，必须被安全忽略而不能报错或让页面半残。 */
+    await evalJS(`(()=>{
+      localStorage.setItem('xyai.homepage.ui.v1', JSON.stringify({
+        bg:'aurora', bright:0.8, blur:6, cols:2, density:'compact',
+        view:'shelf', wide:true, panelOpen:false, collapsed:{research:true}
+      }));
+      localStorage.removeItem('xyai.homepage.usage.v1');
+      localStorage.removeItem('xyai.homepage.pins.v1');
+    })()`);
+    await reload(2400);
+    const legacy = await evalJSON(`(()=>{
+      const b=document.body, p=document.querySelector('.cat-panel')||document.querySelector('.cat-tabs');
+      return JSON.stringify({
+        tabs: document.querySelectorAll('.cat-tab').length,
+        tiles: document.querySelectorAll('.tile-link').length,
+        searchInputs: document.querySelectorAll('#searchInput').length,
+        openCards: document.querySelectorAll('.cat-open').length,
+        bg: b.getAttribute('data-bg'),
+        density: b.getAttribute('data-density'),
+        wide: b.classList.contains('is-wide'),
+        cols: p ? (p.style.getPropertyValue('--cols')||'').trim() : ''
+      });
+    })()`);
+    const legacyErrs = consoleErrors.length + exceptions.length;
+    ok('C6 旧版 localStorage 可平滑升级（有效偏好继承 / 废弃字段忽略 / 页面完整）',
+      legacy.tabs === 15 && legacy.tiles >= 8 && legacy.searchInputs === 1
+      && legacy.bg === 'aurora' && legacy.density === 'compact' && legacy.wide === true
+      && legacy.openCards === 0 && legacyErrs === 0,
+      JSON.stringify(legacy) + ' 控制台错误=' + legacyErrs);
+
+    /* 升级后清回干净状态，供后续截图使用 */
+    await evalJS(`(()=>{
+      localStorage.removeItem('xyai.homepage.usage.v1');
+      localStorage.removeItem('xyai.homepage.pins.v1');
+      try {
+        var ui=JSON.parse(localStorage.getItem('xyai.homepage.ui.v1')||'{}');
+        ui.bg='none'; ui.bright=1; ui.blur=0; ui.cols=3; ui.density='comfort';
+        ui.wide=false; ui.openCat=null; ui.panelOpen=false;
+        localStorage.setItem('xyai.homepage.ui.v1', JSON.stringify(ui));
+      } catch(e) {}
+    })()`);
+    await reload(2200);
+
     /* ============ 16. 交付截图 ============ */
     await evalJS(`(()=>{
       localStorage.removeItem('xyai.homepage.usage.v1');
