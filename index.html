@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#F4F4F2" id="metaThemeColor">
+<meta name="theme-color" content="#FFFFFF" id="metaThemeColor">
 <title>起始页 · 藏书阁</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%232C5CC5'%3E%3Crect%20x='8'%20y='7'%20width='4.5'%20height='18'%20rx='1.6'%20fill='%23FFFFFF'%3E%3Cpath%20d='M16%209.5h8M16%2014.5h8M16%2019.5h5'%20stroke='%23FFFFFF'%20stroke-width='2'%20stroke-linecap='round'%2F%3E%3C%2Fsvg%3E">
 <link rel="stylesheet" href="styles.css">
 </head>
-<body data-bg="none" data-density="comfort" data-view="shelf">
+<body data-bg="none" data-density="comfort">
 
 <!-- ===== 背景层（本地图片，缺失时用渐变兜底） ===== -->
 <div class="bg" aria-hidden="true">
@@ -22,151 +22,170 @@
 
 <div class="app">
 
-  <!-- ===== 顶栏 ===== -->
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true"></span>
-      <span class="brand-name">藏书阁</span>
-      <span class="brand-sub">Personal Research Stacks</span>
-    </div>
+  <div class="topbar-wrap">
+    <!-- ===== 极简顶栏 ===== -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-name">藏书阁</span>
+        <span class="brand-sub mono">Personal Research Stacks</span>
+      </div>
+      <div class="topbar-actions">
+        <button type="button" class="icon-btn" id="themeBtn" aria-label="切换主题" title="切换主题（自动 / 亮 / 暗）"></button>
+        <button type="button" class="icon-btn" id="settingsBtn" aria-expanded="false" aria-controls="settings" aria-label="设置" title="设置"></button>
+      </div>
+    </header>
 
-    <label class="switch" for="safetyToggle">
-      <input type="checkbox" id="safetyToggle" class="switch-input">
-      <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
-      <span class="switch-label">仅看待核实</span>
-    </label>
-  </header>
+    <!-- ===== 设置面板：收纳主题 / 背景 / 布局 / 数据 / 安全 ===== -->
+    <div class="settings" id="settings" hidden aria-label="设置面板">
+
+      <section class="set-group" aria-labelledby="setLookTitle">
+        <h3 class="set-title mono" id="setLookTitle">外观</h3>
+
+        <div class="set-row">
+          <span class="set-label">主题</span>
+          <div class="seg" id="segTheme" role="radiogroup" aria-label="主题">
+            <button type="button" class="seg-btn" role="radio" aria-checked="false" data-v="auto">自动</button>
+            <button type="button" class="seg-btn" role="radio" aria-checked="false" data-v="light">亮</button>
+            <button type="button" class="seg-btn" role="radio" aria-checked="false" data-v="dark">暗</button>
+          </div>
+        </div>
+
+        <div class="set-row set-row-block">
+          <span class="set-label">背景</span>
+          <div class="bg-chips" id="bgChips" role="radiogroup" aria-label="背景图片"></div>
+        </div>
+
+        <div class="set-row">
+          <label class="set-label" for="brightRange">亮度</label>
+          <input type="range" id="brightRange" min="0.3" max="1.4" step="0.05" value="1" aria-label="背景亮度">
+          <output class="mono" id="brightOut" for="brightRange">1.00</output>
+        </div>
+
+        <div class="set-row">
+          <label class="set-label" for="blurRange">模糊</label>
+          <input type="range" id="blurRange" min="0" max="20" step="1" value="0" aria-label="背景模糊">
+          <output class="mono" id="blurOut" for="blurRange">0px</output>
+        </div>
+      </section>
+
+      <section class="set-group" aria-labelledby="setLayoutTitle">
+        <h3 class="set-title mono" id="setLayoutTitle">布局</h3>
+
+        <div class="set-row">
+          <span class="set-label">列数</span>
+          <div class="seg" id="segCols" role="radiogroup" aria-label="链接分栏数">
+            <button type="button" class="seg-btn" role="radio" aria-checked="false" data-v="1">1</button>
+            <button type="button" class="seg-btn" role="radio" aria-checked="false" data-v="2">2</button>
+            <button type="button" class="seg-btn" role="radio" aria-checked="false" data-v="3">3</button>
+            <button type="button" class="seg-btn" role="radio" aria-checked="false" data-v="4">4</button>
+          </div>
+        </div>
+
+        <div class="set-row">
+          <span class="set-label">密度</span>
+          <div class="seg" id="segDensity" role="radiogroup" aria-label="密度">
+            <button type="button" class="seg-btn" role="radio" aria-checked="false" data-v="comfort">舒适</button>
+            <button type="button" class="seg-btn" role="radio" aria-checked="false" data-v="compact">紧凑</button>
+            <button type="button" class="seg-btn" role="radio" aria-checked="false" data-v="minimal">极简</button>
+          </div>
+        </div>
+
+        <div class="set-row">
+          <span class="set-label">全宽</span>
+          <label class="switch" for="wideToggle">
+            <input type="checkbox" id="wideToggle" class="switch-input">
+            <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+            <span class="sr-only">全宽布局</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="set-group" aria-labelledby="setDataTitle">
+        <h3 class="set-title mono" id="setDataTitle">数据</h3>
+
+        <div class="set-row">
+          <span class="set-label">编辑模式</span>
+          <label class="switch" for="editToggle">
+            <input type="checkbox" id="editToggle" class="switch-input">
+            <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+            <span class="sr-only">编辑模式</span>
+          </label>
+        </div>
+
+        <div class="set-actions">
+          <button type="button" class="mini" id="addCatBtn">＋ 新增分类</button>
+          <button type="button" class="mini" id="exportBtn">导出 JSON</button>
+          <button type="button" class="mini" id="importOverwriteBtn">导入·覆盖</button>
+          <button type="button" class="mini" id="importMergeBtn">导入·合并</button>
+          <button type="button" class="mini mini-danger" id="resetBtn">重置为内置默认</button>
+        </div>
+      </section>
+
+      <section class="set-group" aria-labelledby="setSafeTitle">
+        <h3 class="set-title mono" id="setSafeTitle">安全</h3>
+        <div class="set-row">
+          <span class="set-label">仅看待核实</span>
+          <label class="switch" for="safetyToggle">
+            <input type="checkbox" id="safetyToggle" class="switch-input">
+            <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+            <span class="sr-only">仅看待核实</span>
+          </label>
+        </div>
+      </section>
+
+    </div>
+  </div>
 
   <main>
-    <!-- ===== 磨砂玻璃控制台 ===== -->
-    <section class="console" aria-label="控制台">
 
-      <div class="console-grid">
-        <div class="clock-block">
-          <div class="clock" id="clock">
-            <span class="clock-hm" id="clockHM">00:00</span><span class="clock-colon" id="clockColon" aria-hidden="true">:</span><span class="clock-s" id="clockS">00</span>
-          </div>
-          <div class="clock-date" id="clockDate">加载中…</div>
-          <p class="greeting" id="greeting">你好</p>
-        </div>
-
-        <div class="search-block">
-          <div class="search-bar" id="searchBar">
-            <span class="search-icon" id="searchIcon" aria-hidden="true"></span>
-            <input id="searchInput" type="search" autocomplete="off" autocapitalize="off" spellcheck="false"
-                   aria-label="过滤链接、搜索关键词或直接输入网址"
-                   placeholder="过滤下方链接，或输入网址回车打开">
-            <button type="button" id="modeToggle" class="chip chip-mode" aria-pressed="false" aria-label="切换过滤模式与搜索模式">过滤</button>
-            <span class="engine-wrap">
-              <select id="engineSelect" class="engine-select" aria-label="搜索引擎"></select>
-            </span>
-          </div>
-
-          <div class="status-row">
-            <span class="status-count" id="matchCount" aria-live="polite" aria-atomic="true">共 0 项</span>
-            <span class="status-mode" id="modeBadge" data-mode="filter">过滤</span>
-          </div>
-          <p class="hint-line" id="hintLine">↵ 打开首个匹配 · / 聚焦 · ! 搜索 · Ctrl+K</p>
-        </div>
+    <!-- ===== 时钟 ===== -->
+    <section class="masthead" aria-label="本地时间">
+      <p class="eyebrow mono">Local Time</p>
+      <div class="clock" id="clock">
+        <span class="clock-hm" id="clockHM">00:00</span><span class="clock-colon" id="clockColon" aria-hidden="true">:</span><span class="clock-s mono" id="clockS">00</span>
       </div>
-
-      <div class="console-bar">
-        <div class="toolbar" role="group" aria-label="页面工具">
-          <button type="button" class="chip" id="themeBtn" aria-label="切换主题：自动 / 亮 / 暗">主题 · 自动</button>
-          <button type="button" class="chip" id="editBtn" aria-pressed="false" aria-label="切换编辑模式">编辑</button>
-          <button type="button" class="chip" id="exportBtn" aria-label="导出链接数据为 JSON 文件">导出</button>
-          <button type="button" class="chip" id="importOverwriteBtn" aria-label="导入 JSON 文件并覆盖现有数据">导入·覆盖</button>
-          <button type="button" class="chip" id="importMergeBtn" aria-label="导入 JSON 文件并合并到现有数据">导入·合并</button>
-          <button type="button" class="chip chip-danger" id="resetBtn" aria-label="恢复内置默认数据">重置</button>
-        </div>
-        <button type="button" class="chip chip-panel" id="panelToggle" aria-expanded="false" aria-controls="panel">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.5" width="5" height="11" rx="1"/><rect x="9" y="2.5" width="5" height="11" rx="1"/></svg>
-          <span id="panelToggleText">布局 · 背景</span>
-        </button>
-      </div>
-
-      <!-- ===== 布局与背景面板 ===== -->
-      <div class="panel" id="panel" hidden>
-
-        <section class="panel-group" aria-labelledby="panelBgTitle">
-          <h3 class="panel-title" id="panelBgTitle">背景</h3>
-          <div class="bg-chips" id="bgChips" role="radiogroup" aria-label="背景图片"></div>
-          <div class="panel-slider">
-            <label class="panel-label" for="brightRange">亮度</label>
-            <input type="range" id="brightRange" min="0.3" max="1.4" step="0.05" value="1" aria-label="背景亮度">
-            <output class="mono" id="brightOut" for="brightRange">1.00</output>
-          </div>
-          <div class="panel-slider">
-            <label class="panel-label" for="blurRange">模糊</label>
-            <input type="range" id="blurRange" min="0" max="20" step="1" value="0" aria-label="背景模糊">
-            <output class="mono" id="blurOut" for="blurRange">0px</output>
-          </div>
-          <p class="panel-note">[ / ] 切换背景 · 图片缺失时自动回落为渐变</p>
-        </section>
-
-        <section class="panel-group" aria-labelledby="panelLayoutTitle">
-          <h3 class="panel-title" id="panelLayoutTitle">布局</h3>
-          <div class="panel-slider">
-            <span class="panel-label" id="lblCols">列数</span>
-            <div class="seg" id="segCols" role="radiogroup" aria-labelledby="lblCols">
-              <button type="button" class="seg-btn" role="radio" aria-checked="false" data-v="1">1</button>
-              <button type="button" class="seg-btn" role="radio" aria-checked="false" data-v="2">2</button>
-              <button type="button" class="seg-btn" role="radio" aria-checked="true" data-v="3">3</button>
-              <button type="button" class="seg-btn" role="radio" aria-checked="false" data-v="4">4</button>
-            </div>
-          </div>
-          <div class="panel-slider">
-            <span class="panel-label" id="lblDensity">密度</span>
-            <div class="seg" id="segDensity" role="radiogroup" aria-labelledby="lblDensity">
-              <button type="button" class="seg-btn" role="radio" aria-checked="true" data-v="comfort">舒适</button>
-              <button type="button" class="seg-btn" role="radio" aria-checked="false" data-v="compact">紧凑</button>
-              <button type="button" class="seg-btn" role="radio" aria-checked="false" data-v="minimal">极简</button>
-            </div>
-          </div>
-          <div class="panel-slider">
-            <span class="panel-label" id="lblView">视图</span>
-            <div class="seg" id="segView" role="radiogroup" aria-labelledby="lblView">
-              <button type="button" class="seg-btn" role="radio" aria-checked="true" data-v="shelf">书架</button>
-              <button type="button" class="seg-btn" role="radio" aria-checked="false" data-v="list">清单</button>
-            </div>
-          </div>
-          <div class="panel-slider">
-            <span class="panel-label" id="lblWide">全宽</span>
-            <label class="switch" for="wideToggle">
-              <input type="checkbox" id="wideToggle" class="switch-input">
-              <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
-              <span class="switch-label">1600px</span>
-            </label>
-          </div>
-          <p class="panel-note">点书脊或标题可折叠单个分类，折叠状态会记住</p>
-        </section>
-
-      </div>
+      <p class="clock-date" id="clockDate">加载中…</p>
     </section>
 
-    <!-- ===== 书架区 ===== -->
-    <section class="grid-section" aria-label="常用站点">
-      <div class="grid-head">
-        <h2 class="grid-title">常用站点</h2>
-        <div class="grid-head-right">
-          <span class="grid-hint mono" id="gridHint">3 列 · 书架</span>
-          <button type="button" class="chip edit-only" id="addCatBtn" aria-label="新增分类">＋ 新增分类</button>
+    <!-- ===== 唯一搜索框 ===== -->
+    <section class="search-area" aria-label="搜索">
+      <div class="searchbar" id="searchBar">
+        <div class="engine" id="enginePicker">
+          <button type="button" class="engine-btn" id="engineBtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="engineMenu">
+            <span class="engine-label" id="engineLabel">Google</span>
+            <svg class="engine-caret" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.8 6 7.8l3-3"/></svg>
+          </button>
+          <div class="engine-menu" id="engineMenu" role="listbox" aria-label="搜索引擎" hidden></div>
         </div>
+        <input id="searchInput" type="text" inputmode="search" autocomplete="off" autocapitalize="off" spellcheck="false"
+               aria-label="搜索，或直接输入网址"
+               placeholder="搜索，或直接输入网址">
+        <button type="button" class="search-go" id="searchGo" aria-label="搜索" title="搜索（回车）"></button>
       </div>
-
-      <div class="grid" id="grid"></div>
-
-      <div class="empty-state" id="emptyState" hidden>
-        <p class="empty-title" id="emptyTitle">没有匹配的链接</p>
-        <p class="empty-desc" id="emptyDesc">换个更短的关键词，或清除当前筛选。</p>
-        <button type="button" class="chip" id="clearFilterBtn">清除筛选</button>
-      </div>
+      <p class="hint mono" id="hintLine" hidden></p>
     </section>
+
+    <!-- ===== 常用工具（按点击频率） ===== -->
+    <section class="quick" aria-label="常用工具">
+      <div class="quick-row" id="quickRow"></div>
+    </section>
+
+    <!-- ===== 折叠分类 ===== -->
+    <section class="stacks" aria-label="全部站点">
+      <h2 class="sr-only">全部站点</h2>
+      <p class="stacks-meta">
+        <span class="stacks-meta-text mono" id="stacksMeta">全部站点</span>
+        <span class="stacks-rule" aria-hidden="true"></span>
+      </p>
+
+      <div class="cat-tabs" id="catTabs" role="group" aria-label="分类"></div>
+
+      <div class="cat-panel" id="catPanel"></div>
+    </section>
+
   </main>
 
-  <footer class="footer">
-    <span>数据保存在本机浏览器 localStorage · 零外部请求 · 离线可用</span>
-  </footer>
+  <footer class="footer mono">数据保存在本机浏览器 localStorage · 零外部请求 · 离线可用</footer>
 </div>
 
 <!-- ===== 新增 / 编辑链接 ===== -->
@@ -203,7 +222,7 @@
         <option value="safe">安全（safe）</option>
         <option value="caution">谨慎（caution）</option>
       </select>
-      <p class="field-hint" id="noteHint">选择「谨慎」时可补充提示文案，悬停安全点即可查看。</p>
+      <p class="field-hint" id="noteHint">选择「谨慎」时可补充提示文案，悬停安全印鉴即可查看。</p>
     </div>
 
     <div class="field" id="noteField" hidden>
@@ -212,8 +231,8 @@
     </div>
 
     <div class="dlg-actions">
-      <button type="button" class="chip" data-close="cancel">取消</button>
-      <button type="submit" class="chip chip-primary" id="linkSaveBtn" value="save">保存</button>
+      <button type="button" class="mini" data-close="cancel">取消</button>
+      <button type="submit" class="mini mini-primary" id="linkSaveBtn" value="save">保存</button>
     </div>
   </form>
 </dialog>
@@ -237,14 +256,26 @@
     <div class="field">
       <label id="colorLabel">标识色</label>
       <div class="swatches" id="catSwatches" role="radiogroup" aria-labelledby="colorLabel"></div>
-      <p class="field-hint">用于书脊条与字母方块的配色。</p>
+      <p class="field-hint">用于分类标签行的圆点标记。</p>
     </div>
 
     <div class="dlg-actions">
-      <button type="button" class="chip" data-close="cancel">取消</button>
-      <button type="submit" class="chip chip-primary" id="catSaveBtn" value="save">保存</button>
+      <button type="button" class="mini" data-close="cancel">取消</button>
+      <button type="submit" class="mini mini-primary" id="catSaveBtn" value="save">保存</button>
     </div>
   </form>
+</dialog>
+
+<!-- ===== 添加常用链接 ===== -->
+<dialog class="dlg dlg-wide" id="pinDialog" aria-labelledby="pinDialogTitle">
+  <div class="dlg-block">
+    <h3 class="dlg-title" id="pinDialogTitle">添加常用链接</h3>
+    <input type="text" id="pinSearch" class="pin-search" placeholder="搜索站点名、分类或描述…" aria-label="搜索站点" autocomplete="off" spellcheck="false">
+    <ul class="pin-list" id="pinList"></ul>
+    <div class="dlg-actions">
+      <button type="button" class="mini" data-close="cancel">关闭</button>
+    </div>
+  </div>
 </dialog>
 
 <!-- ===== 通用二次确认 ===== -->
@@ -253,8 +284,8 @@
     <h3 class="dlg-title" id="confirmTitle">确认操作</h3>
     <p class="dlg-body" id="confirmBody"></p>
     <div class="dlg-actions">
-      <button type="submit" class="chip" value="cancel">取消</button>
-      <button type="submit" class="chip chip-danger" value="ok">确认</button>
+      <button type="submit" class="mini" value="cancel">取消</button>
+      <button type="submit" class="mini mini-danger" value="ok">确认</button>
     </div>
   </form>
 </dialog>
@@ -265,7 +296,7 @@
 
 <noscript>
   <p style="max-width:680px;margin:0 auto;padding:24px;font-family:system-ui,sans-serif">
-    本页的时钟、筛选与编辑功能需要 JavaScript。请在浏览器设置中启用 JavaScript 后重新打开。
+    本页的时钟、搜索与编辑功能需要 JavaScript。请在浏览器设置中启用 JavaScript 后重新打开。
   </p>
 </noscript>
 
