@@ -77,7 +77,8 @@
     safeOnly: false,
     editMode: false,
     editing: null,        // { cat, link } 编辑链接时的上下文
-    editingCat: null      // 编辑分类时的上下文
+    editingCat: null,     // 编辑分类时的上下文
+    pinMode: 'existing'   // 「＋」弹窗模式：existing=挑已有 / new=建新链接
   };
 
   /* 界面偏好，持久化到 KEY_UI */
@@ -167,6 +168,8 @@
     el.linkDesc = $('linkDesc');
     el.linkSafety = $('linkSafety');
     el.linkNote = $('linkNote');
+    el.noteHint = $('noteHint');
+    el.safetyHint = $('safetyHint');
     el.noteField = $('noteField');
     el.linkNameError = $('linkNameError');
     el.linkUrlError = $('linkUrlError');
@@ -178,8 +181,25 @@
     el.catSwatches = $('catSwatches');
     el.catNameError = $('catNameError');
     el.pinDialog = $('pinDialog');
+    el.pinDialogTitle = $('pinDialogTitle');
     el.pinSearch = $('pinSearch');
     el.pinList = $('pinList');
+    el.pinModeSeg = $('pinModeSeg');
+    el.pinPaneExisting = $('pinPaneExisting');
+    el.newLinkForm = $('newLinkForm');
+    el.newLinkUrl = $('newLinkUrl');
+    el.newLinkUrlError = $('newLinkUrlError');
+    el.newLinkName = $('newLinkName');
+    el.newLinkDesc = $('newLinkDesc');
+    el.newLinkCat = $('newLinkCat');
+    el.bulkDialog = $('bulkDialog');
+    el.bulkForm = $('bulkForm');
+    el.bulkText = $('bulkText');
+    el.bulkCat = $('bulkCat');
+    el.bulkResult = $('bulkResult');
+    el.bulkImportBtn = $('bulkImportBtn');
+    el.bulkDoneBtn = $('bulkDoneBtn');
+    el.bulkOpenBtn = $('bulkOpenBtn');
     el.confirmDialog = $('confirmDialog');
     el.confirmTitle = $('confirmTitle');
     el.confirmBody = $('confirmBody');
@@ -478,6 +498,71 @@
     if (!s) return '';
     if (/^[a-z][a-z0-9+.\-]*:/i.test(s)) return s;
     return 'https://' + s;
+  }
+
+  /* ---------------- 网址解析（用户自定义导入链接用） ---------------- */
+
+  /* 主机名：去掉协议、路径、查询串与用户信息 */
+  function hostOf(u) {
+    var s = String(u || '').trim();
+    s = s.replace(/^[a-z][a-z0-9+.\-]*:\/\//i, '');
+    s = s.split('/')[0].split('?')[0].split('#')[0];
+    return s.split('@').pop();
+  }
+
+  /* 默认名称用：主机名去掉 www. */
+  function displayHost(u) {
+    return hostOf(u).replace(/^www\./i, '');
+  }
+
+  /* 合法网址：必须 http:// 或 https:// 开头，且带域名 */
+  function isValidHttpUrl(u) {
+    var s = String(u || '').trim();
+    if (!s || /\s/.test(s)) return false;
+    if (!/^https?:\/\//i.test(s)) return false;
+    var host = hostOf(s);
+    if (!host) return false;
+    var dot = host.indexOf('.');
+    return dot > 0 && dot < host.length - 1;
+  }
+
+  /* 去重键：忽略大小写与末尾斜杠 */
+  function urlKey(u) {
+    return String(u || '').trim().toLowerCase().replace(/\/+$/, '');
+  }
+
+  /* 全部已有链接的 URL 集合（用于判重） */
+  function allLinkUrls() {
+    var set = {};
+    data.categories.forEach(function (c) {
+      (c.links || []).forEach(function (l) { set[urlKey(l.url)] = true; });
+    });
+    return set;
+  }
+
+  /* 往分类里建一条用户自建链接：安全状态一律 pending。
+     底线：没有实际抓取核实过的站点不能算 safe / caution。 */
+  function createPendingLink(cat, name, url, desc) {
+    var link = {
+      id: genId('l'),
+      name: name,
+      url: url,
+      desc: desc || '',
+      safety: 'pending'
+    };
+    cat.links.push(link);
+    return link;
+  }
+
+  /* 填充分类下拉框 */
+  function fillCatOptions(sel, preferId) {
+    if (!sel) return;
+    sel.textContent = '';
+    data.categories.forEach(function (c) {
+      var opt = h('option', { value: c.id, text: c.name });
+      if (preferId && c.id === preferId) opt.selected = true;
+      sel.appendChild(opt);
+    });
   }
 
   function handleSearch() {
@@ -1078,14 +1163,55 @@
     updateStacksMeta();
   }
 
-  /* ---------------- 添加常用链接（选择器） ---------------- */
+  /* ---------------- 添加常用链接 / 新增链接（双模式） ---------------- */
 
   function openPinDialog() {
     el.pinSearch.value = '';
     renderPinList('');
+    el.newLinkUrl.value = '';
+    el.newLinkName.value = '';
+    el.newLinkDesc.value = '';
+    el.newLinkUrlError.textContent = '';
+    el.newLinkUrlError.hidden = true;
+    fillCatOptions(el.newLinkCat, null);
+    setPinMode('existing');
     el.pinDialog.returnValue = 'cancel';
     el.pinDialog.showModal();
     setTimeout(function () { el.pinSearch.focus(); }, 0);
+  }
+
+  /* 两个模式共用同一个弹窗，用分段按钮互斥显示 */
+  function setPinMode(mode) {
+    state.pinMode = (mode === 'new') ? 'new' : 'existing';
+    syncSeg(el.pinModeSeg, state.pinMode);
+    el.pinPaneExisting.hidden = state.pinMode !== 'existing';
+    el.newLinkForm.hidden = state.pinMode !== 'new';
+    el.pinDialogTitle.textContent = state.pinMode === 'new' ? '新增链接' : '添加常用链接';
+  }
+
+  /* 提交新链接：创建 → 自动钉住 → 关窗 */
+  function submitNewLink() {
+    var url = normalizeUrl(el.newLinkUrl.value.trim());
+    if (!isValidHttpUrl(url)) {
+      el.newLinkUrlError.textContent = '网址格式不正确，示例：example.com';
+      el.newLinkUrlError.hidden = false;
+      return;
+    }
+    el.newLinkUrlError.hidden = true;
+
+    var cat = findCat(el.newLinkCat.value);
+    if (!cat) { toast('目标分类不存在', 'error'); return; }
+
+    var name = el.newLinkName.value.trim() || displayHost(url) || url;
+    var desc = el.newLinkDesc.value.trim();
+
+    var link = createPendingLink(cat, name, url, desc);
+    saveData();
+    renderAll();
+    pinLink(linkKey(link));
+
+    el.pinDialog.close('cancel');
+    toast('已添加并固定到常用');
   }
 
   function renderPinList(q) {
@@ -1123,6 +1249,71 @@
     }
   }
 
+  /* ---------------- 批量导入链接（⚙ 面板 → 数据 → 批量导入链接） ---------------- */
+
+  function openBulkDialog() {
+    el.bulkText.value = '';
+    el.bulkResult.textContent = '';
+    el.bulkResult.hidden = true;
+    el.bulkDoneBtn.hidden = true;
+    var prefer = null;
+    for (var i = 0; i < data.categories.length; i++) {
+      if (data.categories[i].id === 'search') { prefer = 'search'; break; }
+    }
+    if (!prefer && data.categories[0]) prefer = data.categories[0].id;
+    fillCatOptions(el.bulkCat, prefer);
+    el.bulkDialog.returnValue = 'cancel';
+    el.bulkDialog.showModal();
+    setTimeout(function () { el.bulkText.focus(); }, 0);
+  }
+
+  /* 逐行解析：支持「名称 | 网址」与纯网址两种写法 */
+  function parseBulkText(text) {
+    var lines = String(text || '').split(/\r?\n/);
+    var out = [];
+    lines.forEach(function (raw) {
+      var line = String(raw).trim();
+      if (!line) return;
+      var name = '';
+      var url = line;
+      var bar = line.indexOf('|');
+      if (bar >= 0) {
+        name = line.slice(0, bar).trim();
+        url = line.slice(bar + 1).trim();
+      }
+      out.push({ name: name, url: url });
+    });
+    return out;
+  }
+
+  function runBulkImport() {
+    var items = parseBulkText(el.bulkText.value);
+    var cat = findCat(el.bulkCat.value);
+    if (!cat) { toast('目标分类不存在', 'error'); return; }
+
+    var seen = allLinkUrls();
+    var added = 0, dup = 0, invalid = 0;
+
+    items.forEach(function (it) {
+      var url = normalizeUrl(it.url);
+      if (!isValidHttpUrl(url)) { invalid++; return; }
+      var k = urlKey(url);
+      if (seen[k]) { dup++; return; }
+      seen[k] = true;
+      var name = it.name || displayHost(url) || url;
+      createPendingLink(cat, name, url, '');
+      added++;
+    });
+
+    if (added) { saveData(); renderAll(); }
+
+    var summary = '成功 ' + added + ' 条 · 重复 ' + dup + ' 条 · 无效 ' + invalid + ' 条';
+    el.bulkResult.textContent = summary;
+    el.bulkResult.hidden = false;
+    el.bulkDoneBtn.hidden = false;
+    toast(summary);
+  }
+
   /* ---------------- 编辑模式 ---------------- */
 
   function setEditMode(on) {
@@ -1146,7 +1337,11 @@
     el.linkName.value = link ? link.name : '';
     el.linkUrl.value = link ? link.url : '';
     el.linkDesc.value = link ? (link.desc || '') : '';
+    /* 新增时安全状态锁定为「未核实」且不可改；编辑已有链接时才允许调整 */
     el.linkSafety.value = link ? link.safety : 'pending';
+    el.linkSafety.disabled = !link;
+    if (el.safetyHint) el.safetyHint.hidden = !!link;
+    if (el.noteHint) el.noteHint.hidden = !link;
     el.linkNote.value = link && link.note ? link.note : '';
     el.linkNameError.hidden = true;
     el.linkUrlError.hidden = true;
@@ -1214,13 +1409,14 @@
       var insertAt = (oldCat && oldCat.id === targetCat.id) ? Math.min(idx, targetCat.links.length) : targetCat.links.length;
       targetCat.links.splice(insertAt, 0, link);
     } else {
+      /* 新建链接一律 pending：没有实际抓取核实过的站点不能算 safe / caution。
+         与「＋」弹窗的「新增链接」和批量导入走同一口径。 */
       targetCat.links.push({
         id: genId('l'),
         name: name,
         url: url,
         desc: desc,
-        safety: safety,
-        note: (safety === 'caution' && note) ? note : undefined
+        safety: 'pending'
       });
     }
     state.editing = null;
@@ -1848,10 +2044,21 @@
       if (f) handleImportFile(f, pendingImportMode);
     });
 
-    /* 添加常用链接 */
+    /* 添加常用链接：双模式（挑已有 / 建新链接） */
     if (el.pinSearch) {
       el.pinSearch.addEventListener('input', function () { renderPinList(el.pinSearch.value); });
     }
+    bindSeg(el.pinModeSeg, setPinMode);
+    el.newLinkForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      submitNewLink();
+    });
+
+    /* 批量导入链接 */
+    el.bulkOpenBtn.addEventListener('click', openBulkDialog);
+    el.bulkForm.addEventListener('submit', function (e) { e.preventDefault(); });
+    el.bulkImportBtn.addEventListener('click', runBulkImport);
+    el.bulkDoneBtn.addEventListener('click', function () { el.bulkDialog.close('cancel'); });
 
     /* 链接表单 */
     el.linkSafety.addEventListener('change', syncNoteField);

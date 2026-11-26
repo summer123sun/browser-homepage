@@ -91,6 +91,10 @@
 /* ---------- 基础 ---------- */
 * { box-sizing: border-box; }
 
+/* hidden 属性必须压过组件自身的 display（.mini 等是 inline-flex，
+   否则 [hidden] 元素仍会显示出来） */
+[hidden] { display: none !important; }
+
 html, body { margin: 0; padding: 0; }
 
 body {
@@ -215,7 +219,15 @@ body.is-wide .app { --app-max: 1440px; }
   min-height: 34px;
 }
 
-.brand { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+/* 品牌标记：墨色圆角方框 + 两根不等高书脊（左墨色高 / 右强调色矮）
+   与链接右侧的方形安全印鉴属于同一套视觉语言（藏书票 / 印章）。 */
+.brand-mark {
+  color: var(--ink);
+  flex: 0 0 auto;
+  align-self: center;
+}
 
 .brand-name {
   font-size: 16px;
@@ -396,6 +408,10 @@ body.is-wide .app { --app-max: 1440px; }
   border-color: var(--accent);
 }
 
+/* 弹窗里的通栏分段控件（如「已有链接 / 新增链接」两种模式切换） */
+.seg-block { display: flex; width: 100%; margin-bottom: 16px; }
+.seg-block .seg-btn { flex: 1 1 0; text-align: center; }
+
 /* 滑杆 */
 input[type="range"] {
   flex: 1 1 auto;
@@ -451,8 +467,8 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 /* ---------- 时钟区 ---------- */
 .masthead {
-  margin-top: 58px;
-  margin-bottom: 34px;
+  margin-top: 56px;
+  margin-bottom: 28px;
   text-align: center;
 }
 
@@ -497,13 +513,14 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 }
 
 /* ---------- 搜索框（唯一） ---------- */
-.search-area { max-width: 720px; margin: 0 auto; }
+.search-area { max-width: 920px; margin: 0 auto; }
 
 .searchbar {
   display: flex;
   align-items: stretch;
+  min-height: 60px;
   border: 2px solid var(--rule);
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--paper);
   transition: border-color .15s ease;
 }
@@ -521,21 +538,21 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .engine-btn {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   height: 100%;
-  padding: 0 13px;
+  padding: 0 20px;
   border: 0;
   background: transparent;
   color: var(--ink-2);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 15.5px;
   letter-spacing: .02em;
   cursor: pointer;
-  border-radius: 10px 0 0 10px;
+  border-radius: 12px 0 0 12px;
 }
 .engine-btn:hover { color: var(--ink); }
 .engine-btn[aria-expanded="true"] { color: var(--accent); }
-.engine-caret { width: 11px; height: 11px; display: block; flex: 0 0 auto; }
+.engine-caret { width: 12px; height: 12px; display: block; flex: 0 0 auto; }
 
 .engine-menu {
   position: absolute;
@@ -556,12 +573,12 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  padding: 7px 9px;
+  padding: 10px 9px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: 14px;
   text-align: left;
   cursor: pointer;
 }
@@ -573,11 +590,11 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 #searchInput {
   flex: 1 1 auto;
   min-width: 0;
-  padding: 0 14px;
+  padding: 0 20px;
   border: 0;
   background: transparent;
   outline: none;
-  font-size: 15px;
+  font-size: 17.5px;
   color: var(--ink);
 }
 #searchInput::placeholder { color: var(--ink-3); }
@@ -587,16 +604,16 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
+  width: 64px;
   border: 0;
   border-left: 1px solid var(--rule);
   background: transparent;
   color: var(--ink-3);
   cursor: pointer;
-  border-radius: 0 10px 10px 0;
+  border-radius: 0 12px 12px 0;
 }
 .search-go:hover { color: var(--accent); }
-.search-go svg { width: 16px; height: 16px; display: block; }
+.search-go svg { width: 20px; height: 20px; display: block; }
 
 .hint {
   margin-top: 9px;
@@ -872,7 +889,7 @@ body.is-editing .cat-grip { display: inline-flex; }
   background: var(--caution-soft);
   transform: rotate(-6deg);
 }
-.stamp[data-safety="pending"] { border-style: solid; opacity: .55; }
+.stamp[data-safety="pending"] { border-style: dashed; opacity: .75; }
 button.stamp { cursor: help; }
 button.stamp::after {
   content: attr(data-tip);
@@ -971,13 +988,14 @@ body[data-density="minimal"] .link-desc { display: none; }
 .dlg-wide { width: min(560px, calc(100vw - 32px)); }
 .dlg::backdrop { background: rgba(16, 18, 20, .34); }
 .dlg form, .dlg-block { padding: 20px 20px 18px; }
+.dlg-block > form { padding: 0; }
 .dlg-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
 .dlg-body { font-size: 13px; color: var(--ink-2); margin-bottom: 18px; }
 .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 
 .field { margin-bottom: 13px; }
 .field > label { display: block; font-size: 12px; color: var(--ink-2); margin-bottom: 5px; }
-.field input[type="text"], .field select {
+.field input[type="text"], .field select, .field textarea {
   width: 100%;
   background: var(--paper);
   border: 1px solid var(--rule);
@@ -986,7 +1004,18 @@ body[data-density="minimal"] .link-desc { display: none; }
   font-size: 13.5px;
   color: var(--ink);
 }
-.field input[type="text"]:focus-visible, .field select:focus-visible {
+.field textarea {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  resize: vertical;
+}
+.field input[type="text"][readonly] {
+  background: var(--surface);
+  color: var(--ink-3);
+  cursor: default;
+}
+.field input[type="text"]:focus-visible, .field select:focus-visible, .field textarea:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-color: var(--accent);
@@ -1061,11 +1090,13 @@ body[data-density="minimal"] .link-desc { display: none; }
   .app { padding: 24px 20px 56px; }
   .brand-sub { display: none; }
   .masthead { margin-top: 44px; }
+  /* 搜索框放大后不再限宽：跟随内容宽度，避免溢出 */
+  .search-area { max-width: 100%; }
 }
 
 @media (max-width: 560px) {
   .app { padding: 18px 14px 44px; }
-  .masthead { margin-top: 32px; margin-bottom: 26px; }
+  .masthead { margin-top: 32px; margin-bottom: 24px; }
   .clock-date { margin-top: 12px; font-size: 12.5px; }
   .quick { margin-top: 30px; }
   .stacks { margin-top: 40px; }
@@ -1073,10 +1104,10 @@ body[data-density="minimal"] .link-desc { display: none; }
   /* 搜索框竖排三段：引擎整行在上，输入 + 放大镜在下 */
   .searchbar { flex-wrap: wrap; }
   .engine { flex: 1 0 100%; border-right: 0; border-bottom: 1px solid var(--rule); }
-  .engine-btn { width: 100%; justify-content: space-between; padding: 9px 13px; border-radius: 10px 10px 0 0; }
+  .engine-btn { width: 100%; justify-content: space-between; padding: 12px 14px; border-radius: 12px 12px 0 0; }
   .engine-menu { left: 0; right: 0; min-width: 0; }
-  #searchInput { padding: 12px 13px; }
-  .search-go { width: 46px; }
+  #searchInput { font-size: 16px; padding: 0 14px; min-height: 46px; }
+  .search-go { width: 54px; }
 
   /* 常用行横向滚动，但整页不产生横向滚动条 */
   .quick-row {

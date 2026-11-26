@@ -869,6 +869,27 @@ async function getWsUrl(port, retries = 80) {
     const added = await evalJSON(`document.querySelectorAll('.cat-open .link-row').length`);
     ok('C6 编辑模式新增链接', added === 27, 'rows=' + added);
 
+    /* 安全底线：自建链接一律 pending —— 即使 UI 上把下拉框设成 safe 也不能生效 */
+    const addedSafety = await evalJSON(`(()=>{
+      const r=Array.from(document.querySelectorAll('.cat-open .link-row')).find(r=>r.querySelector('.link-name').textContent==='验收临时站点');
+      const s=r?r.querySelector('.stamp'):null;
+      return JSON.stringify(s? (s.getAttribute('data-safety')||'none') : 'no-row');
+    })()`);
+    ok('C6 自建链接一律为「未核实」pending（编辑模式路径同样不可标 safe）',
+      addedSafety === 'pending', 'safety=' + addedSafety);
+
+    /* 新增模式下安全状态下拉框必须被锁定（不给可点的「安全」选项） */
+    await evalJS(`document.querySelector('.cat-open-edit .mini').click()`);
+    await sleep(300);
+    const sl = await evalJSON(`JSON.stringify({
+      disabled: document.getElementById('linkSafety').disabled,
+      value: document.getElementById('linkSafety').value
+    })`);
+    ok('C6 新增链接时安全状态选择器被锁定为 pending',
+      sl.disabled === true && sl.value === 'pending', JSON.stringify(sl));
+    await evalJS(`(()=>{const d=document.getElementById('linkDialog');d.returnValue='cancel';d.close('cancel');})()`);
+    await sleep(250);
+
     /* 编辑该链接 */
     await evalJS(`(()=>{const r=Array.from(document.querySelectorAll('.cat-open .link-row')).find(r=>r.querySelector('.link-name').textContent==='验收临时站点');r.querySelectorAll('.row-btn')[0].click();})()`);
     await sleep(300);
@@ -1310,6 +1331,302 @@ async function getWsUrl(port, retries = 80) {
     })()`);
     await reload(2200);
 
+    /* ============ 15.6 第三轮迭代：品牌图标 / 放大搜索框 / 用户自定义导入链接 ============ */
+
+    /* --- A. 品牌图标（顶栏标记 + favicon） --- */
+    const brandInfo = await evalJSON(`(()=>{
+      const marks = document.querySelectorAll('.brand-mark');
+      const m = marks[0] || null;
+      const link = document.querySelector('link[rel="icon"]');
+      const href = link ? (link.getAttribute('href')||'') : '';
+      const spines = m ? m.querySelectorAll('rect[fill]:not([stroke])') : [];
+      return JSON.stringify({
+        count: marks.length,
+        isSvg: !!(m && m.tagName.toLowerCase()==='svg'),
+        inBrand: !!(m && m.closest('.brand')),
+        beforeName: !!(m && m.nextElementSibling && m.nextElementSibling.classList.contains('brand-name')),
+        frames: m ? m.querySelectorAll('rect[stroke]').length : 0,
+        spines: spines.length,
+        spineFill: spines.length > 1 ? getComputedStyle(spines[1]).fill : '',
+        markColor: m ? getComputedStyle(m).color : '',
+        href: href.slice(0, 40),
+        hrefIsData: /^data:image\\/svg\\+xml/.test(href),
+        hrefStartsWithHttp: /^https?:/i.test(href)
+      });
+    })()`);
+    ok('A1 顶栏有且仅有 1 个 .brand-mark（内联 SVG：1 个描边方框 + 2 根不等高书脊，置于「藏书阁」之前）',
+      brandInfo.count === 1 && brandInfo.isSvg && brandInfo.inBrand && brandInfo.beforeName
+      && brandInfo.frames === 1 && brandInfo.spines === 2,
+      JSON.stringify(brandInfo));
+    ok('A1 品牌标记用 currentColor + var(--accent)（暗色自动适配）',
+      brandInfo.markColor === 'rgb(21, 23, 26)' && brandInfo.spineFill === 'rgb(44, 92, 197)',
+      'markColor=' + brandInfo.markColor + ' spineFill=' + brandInfo.spineFill);
+    ok('A1 favicon 是 data:image/svg+xml 内联（非外链，零外部请求）',
+      brandInfo.hrefIsData && brandInfo.hrefStartsWithHttp === false,
+      brandInfo.href);
+
+    const favDecode = await evalJSON(`(async()=>{
+      const link = document.querySelector('link[rel="icon"]');
+      if (!link) return JSON.stringify({ok:false,why:'no link[rel=icon]'});
+      return await new Promise(res=>{
+        const im = new Image();
+        im.onload = ()=>res(JSON.stringify({ok:true,w:im.naturalWidth,h:im.naturalHeight}));
+        im.onerror = ()=>res(JSON.stringify({ok:false,why:'decode failed'}));
+        im.src = link.href;
+      });
+    })()`);
+    ok('A1 favicon data URI 可被浏览器解码为有效 SVG', favDecode.ok === true && favDecode.w > 0, JSON.stringify(favDecode));
+
+    /* --- B. 搜索框放大 --- */
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+    await sleep(800);
+    const searchSize = await evalJSON(`(()=>{
+      const area=document.querySelector('.search-area');
+      const bar=document.getElementById('searchBar');
+      const input=document.getElementById('searchInput');
+      const go=document.getElementById('searchGo');
+      const eng=document.getElementById('engineBtn');
+      const opt=document.querySelector('.engine-opt');
+      const gsvg=go.querySelector('svg');
+      return JSON.stringify({
+        areaW: Math.round(area.getBoundingClientRect().width),
+        barH: Math.round(bar.getBoundingClientRect().height),
+        inputFont: parseFloat(getComputedStyle(input).fontSize),
+        inputPadL: parseFloat(getComputedStyle(input).paddingLeft),
+        goW: Math.round(go.getBoundingClientRect().width),
+        goSvg: gsvg ? Math.round(gsvg.getBoundingClientRect().width) : 0,
+        engFont: parseFloat(getComputedStyle(eng).fontSize),
+        engPadL: parseFloat(getComputedStyle(eng).paddingLeft),
+        radius: getComputedStyle(bar).borderTopLeftRadius,
+        menuFont: opt ? parseFloat(getComputedStyle(opt).fontSize) : 0,
+        menuPad: opt ? parseFloat(getComputedStyle(opt).paddingTop) : 0
+      });
+    })()`);
+    ok('A2 搜索框已放大（1280 下 .search-area ≥ 860px / 输入字号 ≥ 17px / 框高 ≥ 56px）',
+      searchSize.areaW >= 860 && searchSize.inputFont >= 17 && searchSize.barH >= 56,
+      JSON.stringify(searchSize));
+    ok('A2 放大后细节同步放大（放大镜 20px / 引擎按钮 15.5px / 圆角 14px / 下拉项 14px）',
+      searchSize.goSvg >= 19 && searchSize.goW >= 60 && searchSize.engFont >= 15
+      && parseFloat(searchSize.radius) >= 13 && searchSize.menuFont >= 13.5 && searchSize.menuPad >= 9
+      && searchSize.inputPadL >= 19,
+      JSON.stringify(searchSize));
+
+    /* 放大后仍零横向溢出（900 / 560） */
+    for (const sv of [{ w: 900, name: '900' }, { w: 560, name: '560' }]) {
+      await cdp.send('Emulation.setDeviceMetricsOverride', { width: sv.w, height: 800, deviceScaleFactor: 1, mobile: false });
+      await sleep(700);
+      const sr = await evalJSON(`(()=>{
+        const de=document.documentElement;
+        const a=document.querySelector('.search-area').getBoundingClientRect();
+        const b=document.getElementById('searchBar').getBoundingClientRect();
+        return JSON.stringify({
+          scrollW: de.scrollWidth, clientW: de.clientWidth, innerW: window.innerWidth,
+          areaW: Math.round(a.width), areaRight: Math.round(a.right), barW: Math.round(b.width),
+          wrap: getComputedStyle(document.getElementById('searchBar')).flexWrap
+        });
+      })()`);
+      ok('A2 ' + sv.name + ' 宽度下放大后的搜索框随容器收缩且零横向溢出',
+        sr.scrollW <= sr.clientW && sr.areaRight <= sr.innerW + 1 && sr.barW <= sr.innerW + 1,
+        JSON.stringify(sr));
+    }
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+    await sleep(600);
+
+    /* --- C. 「＋」弹窗双模式 + 新增链接 --- */
+    await evalJS(`document.querySelector('.quick-row .tile-add').click()`);
+    await sleep(400);
+    const modeA = await evalJSON(`JSON.stringify({
+      open: document.getElementById('pinDialog').open,
+      title: document.getElementById('pinDialogTitle').textContent,
+      segs: Array.from(document.querySelectorAll('#pinModeSeg .seg-btn')).map(b=>b.getAttribute('data-v')+':'+b.getAttribute('aria-checked')),
+      paneA: !document.getElementById('pinPaneExisting').hidden,
+      formB: document.getElementById('newLinkForm').hidden
+    })`);
+    ok('A3 「＋」弹窗为双模式（已有链接 / 新增链接），默认停在「已有链接」',
+      modeA.open === true && modeA.segs.length === 2 && modeA.paneA === true && modeA.formB === true
+      && modeA.title === '添加常用链接',
+      JSON.stringify(modeA));
+
+    await evalJS(`document.querySelector('#pinModeSeg .seg-btn[data-v="new"]').click()`);
+    await sleep(300);
+    const modeB = await evalJSON(`JSON.stringify({
+      title: document.getElementById('pinDialogTitle').textContent,
+      paneA: !document.getElementById('pinPaneExisting').hidden,
+      formB: document.getElementById('newLinkForm').hidden,
+      cats: document.getElementById('newLinkCat').options.length,
+      safety: document.getElementById('newLinkSafety').value,
+      safetyReadonly: document.getElementById('newLinkSafety').readOnly
+    })`);
+    ok('A3 切到「新增链接」：表单出现 / 标题切换 / 列出全部 15 个分类 / 安全状态固定为 pending 且不可改',
+      modeB.formB === false && modeB.paneA === false && modeB.title === '新增链接'
+      && modeB.cats === 15 && modeB.safetyReadonly === true && modeB.safety.indexOf('pending') >= 0,
+      JSON.stringify(modeB));
+
+    await evalJS(`document.querySelector('#pinModeSeg .seg-btn[data-v="existing"]').click()`);
+    await sleep(250);
+    const modeBack = await evalJSON(`JSON.stringify({
+      paneA: !document.getElementById('pinPaneExisting').hidden,
+      formB: document.getElementById('newLinkForm').hidden,
+      items: document.querySelectorAll('.pin-item').length
+    })`);
+    ok('A3 两种模式可来回切换（新增 → 已有 → 新增），原搜索列表行为不变',
+      modeBack.paneA === true && modeBack.formB === true && modeBack.items > 0,
+      JSON.stringify(modeBack));
+
+    /* 创建一条自建链接：名称留空 → 默认取域名；网址不写协议 → 自动补 https:// */
+    await evalJS(`document.querySelector('#pinModeSeg .seg-btn[data-v="new"]').click()`);
+    await sleep(250);
+    await evalJS(`(()=>{
+      const cat=document.getElementById('newLinkCat');
+      if(cat.querySelector('option[value="search"]')) cat.value='search';
+      document.getElementById('newLinkUrl').value='verify-custom.example/page';
+      document.getElementById('newLinkName').value='';
+      document.getElementById('newLinkDesc').value='验收用自建链接';
+      document.getElementById('newLinkSaveBtn').click();
+    })()`);
+    await sleep(700);
+    const createdLink = await evalJSON(`(()=>{
+      const d=JSON.parse(localStorage.getItem('xyai.homepage.data.v3')||'{}');
+      const found=[];
+      (d.categories||[]).forEach(c=>(c.links||[]).forEach(l=>{
+        if(String(l.url).indexOf('verify-custom.example')>=0) found.push({catId:c.id,cat:c.name,name:l.name,url:l.url,safety:l.safety,desc:l.desc});
+      }));
+      return JSON.stringify({
+        dialogOpen: document.getElementById('pinDialog').open,
+        found: found,
+        tileOnQuick: !!Array.from(document.querySelectorAll('.tile-name')).find(e=>e.textContent==='verify-custom.example'),
+        pins: localStorage.getItem('xyai.homepage.pins.v1'),
+        toast: document.getElementById('toast').textContent
+      });
+    })()`);
+    ok('A3 新增链接：网址自动补 https://、名称默认取域名、落在目标分类、safety 恒为 pending',
+      createdLink.found.length === 1
+      && createdLink.found[0].url === 'https://verify-custom.example/page'
+      && createdLink.found[0].name === 'verify-custom.example'
+      && createdLink.found[0].catId === 'search'
+      && createdLink.found[0].safety === 'pending',
+      JSON.stringify(createdLink.found));
+    ok('A3 新增链接自动钉住到常用行（瓦片出现 + 写入 pins + toast 提示）',
+      createdLink.tileOnQuick === true
+      && (createdLink.pins || '').indexOf('verify-custom.example|https://verify-custom.example/page') >= 0
+      && createdLink.toast.indexOf('已添加并固定到常用') >= 0,
+      'pins=' + createdLink.pins + ' toast="' + createdLink.toast + '"');
+
+    /* --- D. 批量导入链接 --- */
+    await evalJS(`document.getElementById('settingsBtn').click()`);
+    await sleep(350);
+    const bulkBtnState = await evalJS(`(()=>{
+      const b=document.getElementById('bulkOpenBtn');
+      if(!b) return 'MISSING';
+      if(document.getElementById('settings').hidden) return 'PANEL_CLOSED';
+      b.click();
+      return 'OK';
+    })()`);
+    await sleep(450);
+    const bulkOpenInfo = await evalJSON(`JSON.stringify({
+      open: document.getElementById('bulkDialog').open,
+      cats: document.getElementById('bulkCat').options.length,
+      selected: document.getElementById('bulkCat').value,
+      placeholder: document.getElementById('bulkText').placeholder,
+      doneVisible: getComputedStyle(document.getElementById('bulkDoneBtn')).display !== 'none',
+      resultVisible: getComputedStyle(document.getElementById('bulkResult')).display !== 'none'
+    })`);
+    ok('A4 ⚙ 面板「数据」分区有「批量导入链接」入口，点击打开批量导入弹窗（15 个分类可选）',
+      bulkBtnState === 'OK' && bulkOpenInfo.open === true && bulkOpenInfo.cats === 15
+      && /每行一条网址/.test(bulkOpenInfo.placeholder),
+      bulkBtnState + ' ' + JSON.stringify(bulkOpenInfo));
+    ok('A4 批量导入弹窗初始不显示「完成」按钮与统计行（导入后才出现）',
+      bulkOpenInfo.doneVisible === false && bulkOpenInfo.resultVisible === false,
+      JSON.stringify(bulkOpenInfo));
+
+    const linksBefore = await evalJSON(`(()=>{
+      const d=JSON.parse(localStorage.getItem('xyai.homepage.data.v3')||'{}');
+      let n=0; (d.categories||[]).forEach(c=>n+=(c.links||[]).length); return n;
+    })()`);
+
+    /* 3 行：合法新网址 / 与已有链接重复（arxiv.org）/ 非法串 */
+    await evalJS(`(()=>{
+      document.getElementById('bulkText').value='https://bulk-verify.example/one\\nhttps://arxiv.org\\n这不是网址';
+      document.getElementById('bulkImportBtn').click();
+    })()`);
+    await sleep(800);
+    const bulkOutcome = await evalJSON(`(()=>{
+      const d=JSON.parse(localStorage.getItem('xyai.homepage.data.v3')||'{}');
+      let n=0; const bulk=[];
+      (d.categories||[]).forEach(c=>(c.links||[]).forEach(l=>{
+        n++;
+        if(String(l.url).indexOf('bulk-verify.example')>=0) bulk.push({cat:c.name,name:l.name,url:l.url,safety:l.safety});
+      }));
+      return JSON.stringify({
+        result: document.getElementById('bulkResult').textContent,
+        resultHidden: document.getElementById('bulkResult').hidden,
+        total: n,
+        bulk: bulk,
+        toast: document.getElementById('toast').textContent,
+        doneShown: getComputedStyle(document.getElementById('bulkDoneBtn')).display !== 'none',
+        resultShown: getComputedStyle(document.getElementById('bulkResult')).display !== 'none'
+      });
+    })()`);
+    ok('A4 批量导入统计「成功 1 · 重复 1 · 无效 1」，且只真的新增 1 条',
+      /成功\s*1\s*条?\s*·\s*重复\s*1\s*条?\s*·\s*无效\s*1\s*条?/.test(bulkOutcome.result)
+      && bulkOutcome.resultHidden === false
+      && bulkOutcome.total === linksBefore + 1
+      && bulkOutcome.bulk.length === 1
+      && bulkOutcome.doneShown === true
+      && bulkOutcome.resultShown === true,
+      'result="' + bulkOutcome.result + '" links ' + linksBefore + '->' + bulkOutcome.total + ' ' + JSON.stringify(bulkOutcome.bulk));
+    ok('A4 批量导入的链接 safety 一律 pending（自建链接绝不标 safe）',
+      bulkOutcome.bulk.length === 1 && bulkOutcome.bulk[0].safety === 'pending',
+      JSON.stringify(bulkOutcome.bulk));
+
+    /* --- E. 刷新后仍在（localStorage 持久化） --- */
+    await evalJS(`document.getElementById('bulkDoneBtn').click()`);
+    await sleep(350);
+    await reload(2400);
+    const persistCheck = await evalJSON(`(()=>{
+      const d=JSON.parse(localStorage.getItem('xyai.homepage.data.v3')||'{}');
+      const urls=[]; let n=0;
+      (d.categories||[]).forEach(c=>(c.links||[]).forEach(l=>{n++; urls.push(l.url);}));
+      return JSON.stringify({
+        hasCustom: urls.indexOf('https://verify-custom.example/page')>=0,
+        hasBulk: urls.indexOf('https://bulk-verify.example/one')>=0,
+        pins: localStorage.getItem('xyai.homepage.pins.v1'),
+        total: n
+      });
+    })()`);
+    ok('A4 批量导入与新增链接的结果刷新后仍在（localStorage 持久化）',
+      persistCheck.hasCustom === true && persistCheck.hasBulk === true
+      && (persistCheck.pins || '').indexOf('verify-custom.example') >= 0,
+      JSON.stringify(persistCheck));
+
+    /* --- F. 验收产生的自建链接不污染基线：重置回内置默认数据 --- */
+    await evalJS(`document.getElementById('resetBtn').click()`);
+    await sleep(400);
+    await evalJS(`(()=>{const d=document.getElementById('confirmDialog');d.returnValue='ok';d.close('ok');})()`);
+    await sleep(800);
+    await evalJS(`(()=>{
+      localStorage.removeItem('xyai.homepage.usage.v1');
+      localStorage.removeItem('xyai.homepage.pins.v1');
+      try {
+        var ui=JSON.parse(localStorage.getItem('xyai.homepage.ui.v1')||'{}');
+        ui.panelOpen=false; ui.openCat=null;
+        localStorage.setItem('xyai.homepage.ui.v1', JSON.stringify(ui));
+      } catch(e) {}
+    })()`);
+    await reload(2400);
+    const restoredBase = await evalJSON(`(()=>{
+      const d=JSON.parse(localStorage.getItem('xyai.homepage.data.v3')||'{}');
+      let n=0,safe=0,caution=0,pending=0;
+      (d.categories||[]).forEach(c=>(c.links||[]).forEach(l=>{n++; if(l.safety==='safe')safe++; else if(l.safety==='caution')caution++; else if(l.safety==='pending')pending++;}));
+      return JSON.stringify({cats:(d.categories||[]).length,total:n,safe:safe,caution:caution,pending:pending});
+    })()`);
+    ok('A5 验收后重置回内置基线（15 分类 / 106 条 / 72 safe / 34 caution / 0 pending）',
+      restoredBase.cats === 15 && restoredBase.total === 106 && restoredBase.safe === 72
+      && restoredBase.caution === 34 && restoredBase.pending === 0,
+      JSON.stringify(restoredBase));
+    await cdp.send('Emulation.clearDeviceMetricsOverride');
+    await sleep(400);
+
     /* ============ 16. 交付截图 ============ */
     await evalJS(`(()=>{
       localStorage.removeItem('xyai.homepage.usage.v1');
@@ -1346,6 +1663,37 @@ async function getWsUrl(port, retries = 80) {
     const shotOk = shotFiles.every(f => fs.existsSync(path.join(SHOTS, f)) && fs.statSync(path.join(SHOTS, f)).size > 5000);
     ok('C7 三张交付截图已生成（1280 单框 / 1280 展开分类 / 560 移动端）', shotOk,
       shotFiles.map(f => f + ' ' + (fs.existsSync(path.join(SHOTS, f)) ? fs.statSync(path.join(SHOTS, f)).size + 'B' : 'MISSING')).join(' | '));
+
+    /* ============ 16.5 第三轮交付截图（新图标 / 放大搜索框 / 新增链接 / 批量导入） ============ */
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+    await sleep(900);
+    const s13 = await cdp.send('Page.captureScreenshot', { format: 'png' });
+    fs.writeFileSync(path.join(SHOTS, '13-新图标与放大搜索框-1280.png'), Buffer.from(s13.data, 'base64'));
+
+    await evalJS(`document.querySelector('.quick-row .tile-add').click()`);
+    await sleep(450);
+    await evalJS(`document.querySelector('#pinModeSeg .seg-btn[data-v="new"]').click()`);
+    await sleep(350);
+    const s14 = await cdp.send('Page.captureScreenshot', { format: 'png' });
+    fs.writeFileSync(path.join(SHOTS, '14-新增链接弹窗-1280.png'), Buffer.from(s14.data, 'base64'));
+    await evalJS(`document.getElementById('pinDialog').close('cancel')`);
+    await sleep(350);
+
+    await evalJS(`document.getElementById('bulkOpenBtn').click()`);
+    await sleep(500);
+    await evalJS(`(()=>{document.getElementById('bulkText').value='名称 A | https://example.com\\nhttps://another.example\\nhttps://third.example';})()`);
+    await sleep(250);
+    const s15 = await cdp.send('Page.captureScreenshot', { format: 'png' });
+    fs.writeFileSync(path.join(SHOTS, '15-批量导入弹窗-1280.png'), Buffer.from(s15.data, 'base64'));
+    await evalJS(`document.getElementById('bulkDialog').close('cancel')`);
+    await sleep(350);
+    await cdp.send('Emulation.clearDeviceMetricsOverride');
+    await sleep(300);
+
+    const newShotFiles = ['13-新图标与放大搜索框-1280.png', '14-新增链接弹窗-1280.png', '15-批量导入弹窗-1280.png'];
+    const newShotOk = newShotFiles.every(f => fs.existsSync(path.join(SHOTS, f)) && fs.statSync(path.join(SHOTS, f)).size > 5000);
+    ok('A5 三张第三轮交付截图已生成（新图标+放大搜索框 / 新增链接弹窗 / 批量导入弹窗）', newShotOk,
+      newShotFiles.map(f => f + ' ' + (fs.existsSync(path.join(SHOTS, f)) ? fs.statSync(path.join(SHOTS, f)).size + 'B' : 'MISSING')).join(' | '));
 
     /* ============ 最终汇总 ============ */
     ok('FINAL 全程控制台 0 error', consoleErrors.length === 0, consoleErrors.join(' | ') || '0');

@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#FFFFFF" id="metaThemeColor">
 <title>起始页 · 藏书阁</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%232C5CC5'%3E%3Crect%20x='8'%20y='7'%20width='4.5'%20height='18'%20rx='1.6'%20fill='%23FFFFFF'%3E%3Cpath%20d='M16%209.5h8M16%2014.5h8M16%2019.5h5'%20stroke='%23FFFFFF'%20stroke-width='2'%20stroke-linecap='round'%2F%3E%3C%2Fsvg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='4' width='24' height='24' rx='6.5' fill='none' stroke='%2315171A' stroke-width='2.6'/%3E%3Crect x='9.6' y='8' width='5.6' height='16' rx='1.7' fill='%2315171A'/%3E%3Crect x='17.4' y='11.5' width='5.6' height='12.5' rx='1.7' fill='%232C5CC5'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body data-bg="none" data-density="comfort">
@@ -26,6 +26,11 @@
     <!-- ===== 极简顶栏 ===== -->
     <header class="topbar">
       <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 32 32" width="21" height="21" aria-hidden="true" focusable="false">
+          <rect x="4" y="4" width="24" height="24" rx="6.5" fill="none" stroke="currentColor" stroke-width="2.6"/>
+          <rect x="9.6" y="8" width="5.6" height="16" rx="1.7" fill="currentColor"/>
+          <rect x="17.4" y="11.5" width="5.6" height="12.5" rx="1.7" fill="var(--accent)"/>
+        </svg>
         <span class="brand-name">藏书阁</span>
         <span class="brand-sub mono">Personal Research Stacks</span>
       </div>
@@ -113,6 +118,7 @@
         </div>
 
         <div class="set-actions">
+          <button type="button" class="mini" id="bulkOpenBtn">批量导入链接</button>
           <button type="button" class="mini" id="addCatBtn">＋ 新增分类</button>
           <button type="button" class="mini" id="exportBtn">导出 JSON</button>
           <button type="button" class="mini" id="importOverwriteBtn">导入·覆盖</button>
@@ -223,6 +229,7 @@
         <option value="caution">谨慎（caution）</option>
       </select>
       <p class="field-hint" id="noteHint">选择「谨慎」时可补充提示文案，悬停安全印鉴即可查看。</p>
+      <p class="field-hint" id="safetyHint" hidden>新加的链接未经抓取核实，一律记为「未核实」。核实之后可在编辑模式下调整。</p>
     </div>
 
     <div class="field" id="noteField" hidden>
@@ -266,16 +273,85 @@
   </form>
 </dialog>
 
-<!-- ===== 添加常用链接 ===== -->
+<!-- ===== 添加常用链接 / 新增链接（双模式共用一个弹窗） ===== -->
 <dialog class="dlg dlg-wide" id="pinDialog" aria-labelledby="pinDialogTitle">
   <div class="dlg-block">
     <h3 class="dlg-title" id="pinDialogTitle">添加常用链接</h3>
-    <input type="text" id="pinSearch" class="pin-search" placeholder="搜索站点名、分类或描述…" aria-label="搜索站点" autocomplete="off" spellcheck="false">
-    <ul class="pin-list" id="pinList"></ul>
+
+    <div class="seg seg-block" id="pinModeSeg" role="radiogroup" aria-label="添加方式">
+      <button type="button" class="seg-btn" role="radio" aria-checked="true" data-v="existing">已有链接</button>
+      <button type="button" class="seg-btn" role="radio" aria-checked="false" data-v="new">新增链接</button>
+    </div>
+
+    <!-- 模式 A：从已有链接中挑一条钉住 -->
+    <div id="pinPaneExisting">
+      <input type="text" id="pinSearch" class="pin-search" placeholder="搜索站点名、分类或描述…" aria-label="搜索站点" autocomplete="off" spellcheck="false">
+      <ul class="pin-list" id="pinList"></ul>
+      <div class="dlg-actions">
+        <button type="button" class="mini" data-close="cancel">关闭</button>
+      </div>
+    </div>
+
+    <!-- 模式 B：直接建一条新链接（自建链接一律 pending） -->
+    <form id="newLinkForm" novalidate>
+      <div class="field">
+        <label for="newLinkUrl">网址</label>
+        <input type="text" id="newLinkUrl" maxlength="300" placeholder="example.com 或 https://example.com" autocomplete="off" spellcheck="false">
+        <p class="field-error" id="newLinkUrlError" hidden></p>
+      </div>
+
+      <div class="field">
+        <label for="newLinkName">名称（可留空，默认取域名）</label>
+        <input type="text" id="newLinkName" maxlength="40" placeholder="留空则自动使用域名">
+      </div>
+
+      <div class="field">
+        <label for="newLinkDesc">描述（可留空）</label>
+        <input type="text" id="newLinkDesc" maxlength="60" placeholder="一句话说明">
+      </div>
+
+      <div class="field">
+        <label for="newLinkCat">所属分类</label>
+        <select id="newLinkCat"></select>
+      </div>
+
+      <div class="field">
+        <label for="newLinkSafety">安全状态</label>
+        <input type="text" id="newLinkSafety" value="未核实（pending）" readonly aria-readonly="true">
+        <p class="field-hint">自建链接未经抓取核实，一律记为「未核实」，不可改为已核实。</p>
+      </div>
+
+      <div class="dlg-actions">
+        <button type="button" class="mini" data-close="cancel">关闭</button>
+        <button type="submit" class="mini mini-primary" id="newLinkSaveBtn">创建并固定</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<!-- ===== 批量导入链接 ===== -->
+<dialog class="dlg dlg-wide" id="bulkDialog" aria-labelledby="bulkDialogTitle">
+  <form id="bulkForm" novalidate>
+    <h3 class="dlg-title" id="bulkDialogTitle">批量导入链接</h3>
+
+    <div class="field">
+      <label for="bulkText">链接列表</label>
+      <textarea id="bulkText" rows="9" placeholder="每行一条网址，也可以写成「名称 | 网址」" spellcheck="false"></textarea>
+    </div>
+
+    <div class="field">
+      <label for="bulkCat">目标分类</label>
+      <select id="bulkCat"></select>
+    </div>
+
+    <p class="field-hint" id="bulkResult" hidden></p>
+
     <div class="dlg-actions">
       <button type="button" class="mini" data-close="cancel">关闭</button>
+      <button type="button" class="mini mini-primary" id="bulkImportBtn">导入</button>
+      <button type="button" class="mini" id="bulkDoneBtn" hidden>完成</button>
     </div>
-  </div>
+  </form>
 </dialog>
 
 <!-- ===== 通用二次确认 ===== -->
