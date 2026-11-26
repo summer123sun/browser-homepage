@@ -655,7 +655,10 @@
         'aria-label': '背景：' + p.label,
         title: p.label
       });
-      if (p.file) chip.style.backgroundImage = bgLayers(p);
+      /* 初始只给「当前背景」上真实缩略图（命中已缓存的主图，不额外下载）；
+         其余先用近似渐变占位，等用户打开设置面板时再补图 ——
+         否则每次打开起始页都会白下载 5 张背景图（约 1.1MB）。 */
+      chip.style.backgroundImage = (p.id === prefs.bg && p.file) ? bgLayers(p) : p.fallback;
       chip.addEventListener('click', function () {
         prefs.bg = p.id;
         savePrefs();
@@ -664,6 +667,16 @@
       });
       el.bgChips.appendChild(chip);
     });
+  }
+
+  /* 打开设置面板时才真正加载 5 张背景缩略图（避免每次打开页面都下载全部背景图） */
+  function paintBgChips() {
+    if (!el.bgChips) return;
+    Array.prototype.forEach.call(el.bgChips.children, function (chip) {
+      var p = bgPreset(chip.getAttribute('data-bg-id'));
+      if (p && p.file) chip.style.backgroundImage = bgLayers(p);
+    });
+    probeBgImages();
   }
 
   /* 探测本地图片是否可加载；缺失时给缩略芯片打上斜纹标记（主体仍由渐变兜底） */
@@ -717,6 +730,7 @@
     prefs.panelOpen = !!open;
     if (el.settings) el.settings.hidden = !prefs.panelOpen;
     if (el.settingsBtn) el.settingsBtn.setAttribute('aria-expanded', String(prefs.panelOpen));
+    if (prefs.panelOpen) paintBgChips();
     if (persist !== false) savePrefs();
   }
 
@@ -1907,7 +1921,6 @@
     renderBgChips();
     applyPrefs();
     applyBackground(false);
-    probeBgImages();
 
     /* 数据 */
     data = loadData();

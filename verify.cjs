@@ -949,6 +949,19 @@ async function getWsUrl(port, retries = 80) {
       afterReset.order);
 
     /* ============ 11. 背景：默认关闭 + 5 张本地图 + 交叉淡入 + 亮度/模糊 ============ */
+    /* 背景图按需加载：默认「无背景」时整页不应请求任何 assets/bg-*.jpg（约 1.1MB），
+       5 张缩略图只在用户打开设置面板时才补载。 */
+    await evalJS(`(()=>{try{
+      var ui=JSON.parse(localStorage.getItem('xyai.homepage.ui.v1')||'{}');
+      ui.bg='none'; ui.bright=1; ui.blur=0; ui.panelOpen=false;
+      localStorage.setItem('xyai.homepage.ui.v1', JSON.stringify(ui));
+    }catch(e){}})()`);
+    const bgReqMark = requests.length;
+    await reload(2200);
+    const bgReqsOnNone = requests.slice(bgReqMark).filter(u => /assets\/bg-/.test(u));
+    ok('C2 默认「无背景」时零背景图请求（不白下载 1.1MB 图片）', bgReqsOnNone.length === 0,
+      bgReqsOnNone.length ? bgReqsOnNone.join(' | ') : '0 个背景图请求');
+
     await evalJS(`document.getElementById('settingsBtn').click()`);
     await sleep(300);
     const chips = JSON.parse(await evalJS(`JSON.stringify(Array.from(document.querySelectorAll('.bg-chip')).map(c=>({id:c.getAttribute('data-bg-id'),label:c.getAttribute('data-label'),checked:c.getAttribute('aria-checked')})))`));
